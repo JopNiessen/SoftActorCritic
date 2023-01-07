@@ -124,11 +124,10 @@ class SACAgent:
         next_state, reward, done, _ = self.env.step(control)
         #reward = jnp.clip(reward/15, a_min=-1)                      # TODO: normalize reward
         
-        transition = [state, control, reward, next_state, done]
         if learning:
             self.buffer.store(state, control, reward, next_state, done)
     
-        return transition
+        return state, control, reward, next_state, done
     
     def q_min(self, state, control):
         q1 = self.QF1(state, control)
@@ -145,63 +144,57 @@ class SACAgent:
         return state, control, reward, next_state, done
 
     def train_step(self, batch_size, key):
-        """Update the model by gradient descent."""
         state, control, reward, next_state, done = self._sample_from_buffer(batch_size)
 
         keys = jrandom.split(key, len(state))
         new_control, log_prob = jax.vmap(self.actor)(state, keys)
         
-        # train alpha (dual problem)
+        # update alpha (dual problem)
         alpha_loss, alpha_grads = jax.value_and_grad(self.alpha_loss_fn)(self.log_alpha, log_prob)
         updates, self.alpha_opt_state = self.alpha_optimizer.update(alpha_grads, self.alpha_opt_state)
         self.log_alpha = optax.apply_updates(self.log_alpha, updates)
         alpha = jnp.exp(self.log_alpha)
         
-        # q function loss
+        # Q-function gradients
         mask = 1 - done
         v_target = jax.vmap(self.VF_target)(next_state)
         q_target = reward + self.gamma * v_target * mask
         q1_loss, q1_grads = self.QF1.value_and_grad(state, control, q_target)
         q2_loss, q2_grads = self.QF2.value_and_grad(state, control, q_target)
         
-        # v function loss
+        # value function gradients
         v_pred = jax.vmap(self.VF)(state)
         q_pred = jax.vmap(self.q_min)(state, new_control)
         v_target = q_pred - alpha * log_prob
         v_loss, v_grads = self.VF.value_and_grad(state, v_target)
         
         if self.step_count % self.policy_update_freq == 0:
-            # actor loss
+            # update actor
             pi_loss, pi_grads = self.actor.value_and_grad(state, alpha, v_pred, self.q_min, keys)
-            
-            # train actor
             self.actor.update(pi_grads)
         
-            # target update (vf)
+            # update value target
             self._update_value_target()
         else:
             pi_loss = 0
             
-        # train Q functions
+        # update Q-functions
         self.QF1.update(q1_grads)
         self.QF2.update(q2_grads)
         q_loss = q1_loss + q2_loss
 
-        # train V function
+        # update value function
         self.VF.update(v_grads)
         return pi_loss, q_loss, v_loss, alpha_loss
     
     def train(self, n_epochs, key, batch_size=100, plotting_interval = 200):
-        """Train the agent."""
-        
+
         state = self.env.reset()
         scores = []
         score = 0
         
         for _ in range(n_epochs):
             _, _, reward, next_state, done = self.step(state, key, learning=True)
-            #control = self.select_control(state, key)
-            #next_state, reward, done = self.step(control)
 
             # take step
             state = next_state
@@ -244,30 +237,6 @@ class SACAgent:
             target = eqx.tree_at(lambda model: model.general_layers[idx].weight, target, replace=weight)
             target = eqx.tree_at(lambda model: model.general_layers[idx].bias, target, replace=bias)
         self.VF_target.model = target
-
-    # def _update_value_target(self):
-    #     """Soft-update: target = tau*local + (1-tau)*target."""
-    #     tau = self.tau
-    #     base = self.VF.model
-    #     target = self.VF_target.model
-
-    #     h1_weight = base.hidden1.weight * tau + target.hidden1.weight * (1-tau)
-    #     h1_bias = base.hidden1.bias * tau + target.hidden1.bias * (1-tau)
-
-    #     h2_weight = base.hidden2.weight * tau + target.hidden2.weight * (1-tau)
-    #     h2_bias = base.hidden2.bias * tau + target.hidden2.bias * (1-tau)
-
-    #     out_weight = base.out.weight * tau + target.out.weight * (1-tau)
-    #     out_bias = base.out.bias * tau + target.out.bias * (1-tau)
-
-    #     target = eqx.tree_at(lambda model: model.hidden1.weight, target, replace=h1_weight)
-    #     target = eqx.tree_at(lambda model: model.hidden1.bias, target, replace=h1_bias)
-    #     target = eqx.tree_at(lambda model: model.hidden2.weight, target, replace=h2_weight)
-    #     target = eqx.tree_at(lambda model: model.hidden2.bias, target, replace=h2_bias)
-    #     target = eqx.tree_at(lambda model: model.out.weight, target, replace=out_weight)
-    #     target = eqx.tree_at(lambda model: model.out.bias, target, replace=out_bias)
-
-    #     self.VF_target.model = target
     
     def _plot(self, epoch, scores, pi_loss, q_loss, v_loss, alpha_loss):
         """Plot the training progresses."""
