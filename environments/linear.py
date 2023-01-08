@@ -36,7 +36,7 @@ class StochasticDoubleIntegrator:
         self.boundary = jnp.array([jnp.inf, jnp.inf])
 
         self.observation_space = x0
-        self.action_space = jnp.array([[-1, 1]])*1
+        self.action_space = jnp.array([[-1, 1]])*2
 
         """System parameters"""
         self.A = jnp.array([[0, 1], [0, -k]])
