@@ -46,7 +46,7 @@ class PolicyNetwork_sdi(eqx.Module):
         x = state
         
         # apply mu layer
-        mu = jax.nn.tanh(self.mu_layer(x))
+        mu = self.mu_layer(x)
 
         if deterministic:
             return mu * self.control_lim, None
@@ -153,7 +153,7 @@ class PolicyNetwork(eqx.Module):
             x = jax.nn.relu(layer(x))
         
         # apply mu layer
-        mu = jax.nn.tanh(self.mu_layer(x))
+        mu = self.mu_layer(x)
 
         if deterministic:
             return mu * self.control_lim, None
