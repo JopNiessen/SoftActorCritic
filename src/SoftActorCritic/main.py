@@ -74,16 +74,16 @@ class SACAgent:
 
         # set dimensions
         try:
-            obs_size = env.observation_space.shape[0]
-            ctrl_size = env.action_space.shape[0]
+            self.obs_size = env.observation_space.shape[0]
+            self.ctrl_size = env.action_space.shape[0]
         except:
-            if obs_size == None or ctrl_size == None:
+            if self.obs_size == None or self.ctrl_size == None:
                 raise Exception('Observation and-or control dim could not be determined')
             else:
                 pass
 
         # build replay buffer
-        self.buffer = ReplayBuffer(buffer_size, obs_size, key)
+        self.buffer = ReplayBuffer(buffer_size, self.obs_size, key)
         
         # automatic entropy tuning
         self.target_entropy = -1
@@ -92,15 +92,15 @@ class SACAgent:
         self.alpha_opt_state = self.alpha_optimizer.init(self.log_alpha)
 
         # actor
-        self.actor = PolicyFunction(obs_size, ctrl_size, lr_pi, keys[0], control_limit=self.control_limit)
+        self.actor = PolicyFunction(self.obs_size, self.ctrl_size, lr_pi, keys[0], control_limit=self.control_limit)
         
         # v function
-        self.VF = ValueFunction(obs_size, lr_v, keys[1])
-        self.VF_target = ValueFunction(obs_size, lr_v, keys[1])
+        self.VF = ValueFunction(self.obs_size, lr_v, keys[1])
+        self.VF_target = ValueFunction(self.obs_size, lr_v, keys[1])
         
         # q function
-        self.QF1 = QFunction(obs_size + ctrl_size, lr_q, keys[2])
-        self.QF2 = QFunction(obs_size + ctrl_size, lr_q, keys[3])
+        self.QF1 = QFunction(self.obs_size + self.ctrl_size, lr_q, keys[2])
+        self.QF2 = QFunction(self.obs_size + self.ctrl_size, lr_q, keys[3])
 
         # store losses
         self.tracker = Tracker(['pi_loss', 'q_loss', 'v_loss', 'alpha_loss'])
