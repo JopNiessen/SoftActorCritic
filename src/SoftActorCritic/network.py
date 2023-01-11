@@ -13,7 +13,7 @@ from jax.scipy.stats.norm import logpdf
 """Policy Network (actor)"""
 class PolicyNetwork_sdi(eqx.Module):
     mu_layer: eqx.nn.Linear
-    log_std_layer: eqx.nn.MLP
+    log_std_layer: list
 
     log_std_min: jnp.float32
     log_std_max: jnp.float32
@@ -46,7 +46,7 @@ class PolicyNetwork_sdi(eqx.Module):
         x = state
         
         # apply mu layer
-        mu = self.mu_layer(x)
+        mu = jax.nn.tanh(self.mu_layer(x))
 
         if deterministic:
             return mu * self.control_lim, None
@@ -153,10 +153,10 @@ class PolicyNetwork(eqx.Module):
             x = jax.nn.relu(layer(x))
         
         # apply mu layer
-        mu = self.mu_layer(x)
+        mu = jax.nn.tanh(self.mu_layer(x))
 
         if deterministic:
-            return mu * self.control_lim, None
+            return mu, None
         else:
             # apply log-std layer
             log_std = jnp.tanh(self.log_std_layer(x))
@@ -167,7 +167,7 @@ class PolicyNetwork(eqx.Module):
             z = mu + std * jrandom.normal(key, (1,))
             
             # squeez and normalize
-            control = jnp.tanh(z)                       # TODO: jnp.tanh appearantly can yield a value slightly higher than 1.
+            control = jnp.tanh(z)                       # Note: jnp.tanh appearantly can yield a value slightly higher than 1.
             log_prob = logpdf(z, loc=mu, scale=std) - jnp.log(1 - control**2 + 1e-5)
             
             return control * self.control_lim, log_prob
