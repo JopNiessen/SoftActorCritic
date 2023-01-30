@@ -50,6 +50,8 @@ class SACAgent:
         :param obs_size: number of observables [int]
         :param ctrl_size: number of control variables [int]
         """
+        self.recording = {'state':[], 'angle':[], 'force':[], 'time':[]}   #TODO: temporary
+
         # set environment
         self.env = env
         keys = jrandom.split(key, 5)
@@ -59,6 +61,7 @@ class SACAgent:
         self.tau = kwargs.get('tau', 4e-3)
         self.initial_random_steps = kwargs.get('initial_random_steps', 1000)
         self.policy_update_freq = kwargs.get('policy_update_freq', 2)
+        self.epochs_per_step = kwargs.get('epochs_per_step', 1)
 
         # set learning rates
         lr = kwargs.get('lr', 2e-3)
@@ -83,7 +86,8 @@ class SACAgent:
                 pass
 
         # build replay buffer
-        self.buffer = ReplayBuffer(buffer_size, self.obs_size, key)
+        memory_decay = kwargs.get('memory_decay', 0)
+        self.buffer = ReplayBuffer(buffer_size, self.obs_size, key, decay=1-memory_decay)
         
         # automatic entropy tuning
         self.target_entropy = -1
@@ -187,7 +191,7 @@ class SACAgent:
         self.VF.update(v_grads)
         return pi_loss, q_loss, v_loss, alpha_loss
     
-    def train(self, n_epochs, key, batch_size=100, plotting_interval = 200):
+    def train(self, n_epochs, key, batch_size=100, plotting_interval = 200, record=False):
 
         state = self.env.reset()
         scores = []
@@ -209,8 +213,9 @@ class SACAgent:
 
             # update actor and critic networks
             if (self.buffer.size >= batch_size and self.step_count > self.initial_random_steps):
-                pi_loss, q_loss, v_loss, alpha_loss = self.train_step(batch_size, subkey)
-                self.tracker.add([pi_loss, q_loss, v_loss, alpha_loss])
+                for _ in range(self.epochs_per_step):
+                    pi_loss, q_loss, v_loss, alpha_loss = self.train_step(batch_size, subkey)
+                    self.tracker.add([pi_loss, q_loss, v_loss, alpha_loss])
             
             # plot
             if self.step_count % plotting_interval == 0:
@@ -222,6 +227,13 @@ class SACAgent:
                     self.tracker('v_loss'),
                     self.tracker('alpha_loss')
                 )
+            
+            if record:
+                self.recording['state'].append(state)
+                params = self.actor.model.mu_layer.weight
+                self.recording['angle'].append(jnp.arctan2(params[0,0], params[0,1]))
+                self.recording['force'].append(jnp.linalg.norm(params[0]))
+                self.recording['time'].append(self.env.t)
                 
         self.env.close()
     

@@ -76,10 +76,11 @@ class Orbital_SDI:
         """
         xi = jrandom.normal(key, (self.dim, ))
         obs = np.dot(self.C, self.state) + np.dot(self.v, xi)
-        theta, w = obs
-        x = jnp.cos(theta)
-        y = jnp.sin(theta)
-        return jnp.array([x, y, w])
+        # theta, w = obs
+        # x = jnp.cos(theta)
+        # y = jnp.sin(theta)
+        # return jnp.array([x, y, w])
+        return obs
 
     def cost(self, state, control):
         """
@@ -89,6 +90,8 @@ class Orbital_SDI:
         :return: marginal cost
         """
         x, u = state, control
+        #theta, w = state
+        #return ((jnp.cos(jnp.pi/4) - jnp.cos(theta))**2 + (jnp.sin(jnp.pi/4) - jnp.sin(theta))**2)*self.dt
         return (x.T @ self.G @ x + self.R * u**2)*self.dt
 
     def terminal_cost(self, state):

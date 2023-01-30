@@ -11,7 +11,8 @@ import optax
 from typing import Callable, Tuple
 
 # import local libraries
-from src.SoftActorCritic.network import PolicyNetwork
+from src.SoftActorCritic.network import PolicyNetwork, LinearPolicyNetwork
+
 
 
 class PolicyFunction:
@@ -27,19 +28,19 @@ class PolicyFunction:
         :param key: key [jrandom.PRNGKey]
         :param control_limit: maximal control magnitude [int]
         """
-        self.model = PolicyNetwork(in_size, out_size, key, control_limit=control_limit)
+        #self.model = PolicyNetwork(in_size, out_size, key, control_limit=control_limit)
+        self.model = LinearPolicyNetwork(in_size, out_size, key, control_limit=control_limit)
         self.optimizer = optax.adam(learning_rate)
         self.opt_state = self.optimizer.init(self.model)
     
-    def __call__(self, state: jnp.ndarray, key: jnp.ndarray, deterministic: bool = False):
+    def __call__(self, state: jnp.ndarray, key: jnp.ndarray):
         """
         Evaluate the policy for a given state
         :param state: state [jnp.ndarray]
         :param key: PRNGKey [jnp.ndarray]
-        :param deterministic: indicate if policy is deterministic [bool]
         :return: control [jnp.ndarray]
         """
-        return self.model(state, key, deterministic=deterministic)
+        return self.model(state, key)
     
     #@eqx.filter_jit
     def loss(self, model, state, alpha, v_pred, q_min, keys) -> jnp.ndarray:

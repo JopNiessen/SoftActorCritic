@@ -11,7 +11,7 @@ from jax.scipy.stats.norm import logpdf
 
 
 """Policy Network (actor)"""
-class PolicyNetwork_sdi(eqx.Module):
+class LinearPolicyNetwork(eqx.Module):
     mu_layer: eqx.nn.Linear
     log_std_layer: list
 
@@ -42,30 +42,32 @@ class PolicyNetwork_sdi(eqx.Module):
         self.log_std_layer = [eqx.nn.Linear(in_size, 32, key=keys[1]),
                                 eqx.nn.Linear(32, out_size, key=keys[2])]
     
-    def __call__(self, state, key, deterministic=False):
+    @jax.jit
+    def __call__(self, state, key):
         x = state
         
         # apply mu layer
         mu = jax.nn.tanh(self.mu_layer(x))
 
-        if deterministic:
-            return mu * self.control_lim, None
-        else:
-            # apply log-std layer
-            for layer in self.log_std_layer[:-1]:
-                x = jax.nn.relu(layer(x))
-            log_std = jnp.tanh(self.log_std_layer[-1](x))
-            log_std = self.log_std_min + 0.5 * (self.log_std_max - self.log_std_min) * (log_std + 1)
-            std = jnp.exp(log_std)
-            
-            # sample control
-            z = mu + std * jrandom.normal(key, (1,))
-            
-            # squeez and normalize
-            control = jnp.tanh(z)                       # TODO: jnp.tanh appearantly can yield a value slightly higher than 1.
-            log_prob = logpdf(z, loc=mu, scale=std) - jnp.log(1 - control**2 + 1e-5)
-            
-            return control * self.control_lim, log_prob
+        # apply log-std layer
+        for layer in self.log_std_layer[:-1]:
+            x = jax.nn.relu(layer(x))
+        log_std = jnp.tanh(self.log_std_layer[-1](x))
+        log_std = self.log_std_min + 0.5 * (self.log_std_max - self.log_std_min) * (log_std + 1)
+        std = jnp.exp(log_std)
+        
+        # sample control
+        z = mu + std * jrandom.normal(key, (1,))
+        
+        # squeez and normalize
+        control = jnp.tanh(z)                       # TODO: jnp.tanh appearantly can yield a value slightly higher than 1.
+        log_prob = logpdf(z, loc=mu, scale=std) - jnp.log(1 - control**2 + 1e-5)
+        
+        return control * self.control_lim, log_prob
+    
+    def predict(self, state):
+        mu = jax.nn.tanh(self.mu_layer(state)) * self.control_lim
+        return mu
 
 
 """Q Network (critic)"""
@@ -80,6 +82,7 @@ class QNetwork(eqx.Module):
             self.general_layers += [eqx.nn.Linear(width_size, width_size, key=keys[it])]
         self.general_layers += [eqx.nn.Linear(width_size, out_size, key=keys[-1])]
 
+    @jax.jit
     def __call__(self, state, control):
         """Forward method implementation."""
         x = jnp.hstack((state, control))
@@ -102,6 +105,7 @@ class ValueNetwork(eqx.Module):
             self.general_layers += [eqx.nn.Linear(width_size, width_size, key=keys[it])]
         self.general_layers += [eqx.nn.Linear(width_size, out_size, key=keys[-1])]
 
+    @jax.jit
     def __call__(self, state):
         """Forward method implementation."""
         x = state
@@ -147,7 +151,8 @@ class PolicyNetwork(eqx.Module):
         # set mu layer
         self.mu_layer = eqx.nn.Linear(128, out_size, key=keys[3])
     
-    def __call__(self, state, key, deterministic=False):
+    @jax.jit
+    def __call__(self, state, key):
         x = state
         for layer in self.general_layers:
             x = jax.nn.relu(layer(x))
@@ -155,19 +160,25 @@ class PolicyNetwork(eqx.Module):
         # apply mu layer
         mu = jax.nn.tanh(self.mu_layer(x))
 
-        if deterministic:
-            return mu, None
-        else:
-            # apply log-std layer
-            log_std = jnp.tanh(self.log_std_layer(x))
-            log_std = self.log_std_min + 0.5 * (self.log_std_max - self.log_std_min) * (log_std + 1)
-            std = jnp.exp(log_std)
-            
-            # sample control
-            z = mu + std * jrandom.normal(key, (1,))
-            
-            # squeez and normalize
-            control = jnp.tanh(z)                       # Note: jnp.tanh appearantly can yield a value slightly higher than 1.
-            log_prob = logpdf(z, loc=mu, scale=std) - jnp.log(1 - control**2 + 1e-5)
-            
-            return control * self.control_lim, log_prob
+        # apply log-std layer
+        log_std = jnp.tanh(self.log_std_layer(x))
+        log_std = self.log_std_min + 0.5 * (self.log_std_max - self.log_std_min) * (log_std + 1)
+        std = jnp.exp(log_std)
+        
+        # sample control
+        z = mu + std * jrandom.normal(key, (1,))
+        
+        # squeez and normalize
+        control = jnp.tanh(z)                       # Note: jnp.tanh appearantly can yield a value slightly higher than 1.
+        log_prob = logpdf(z, loc=mu, scale=std) - jnp.log(1 - control**2 + 1e-5)
+        
+        return control * self.control_lim, log_prob
+    
+    def predict(self, state):
+        x = state
+        for layer in self.general_layers:
+            x = jax.nn.relu(layer(x))
+        
+        # apply mu layer
+        mu = jax.nn.tanh(self.mu_layer(x))
+        return mu

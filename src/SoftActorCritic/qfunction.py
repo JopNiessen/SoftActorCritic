@@ -29,7 +29,7 @@ class QFunction:
         :param depth: network depth (default: 2) [int]
         """
         out_size = kwargs.get('out_size', 1)
-        width = kwargs.get('width', 128)
+        width = kwargs.get('width', 64)
         depth = kwargs.get('depth', 2)
         self.model = QNetwork(in_size, out_size, width, depth, key)
         self.optimizer = optax.adam(learning_rate)
@@ -44,6 +44,7 @@ class QFunction:
         """
         return self.model(state, control)
     
+    @eqx.filter_jit
     def loss(self, model, state, control, target) -> jnp.ndarray:
         """
         Compute loss of the Q-network
@@ -54,7 +55,7 @@ class QFunction:
         :return: loss [jnp.ndarray]
         """
         pred = jax.vmap(model)(state, control)
-        pred = jnp.reshape(pred, target.shape)
+        #pred = jnp.reshape(pred, target.shape) #TODO:may be redundant > check
         return jnp.mean((pred - target)**2)
     
     #@eqx.filter_jit

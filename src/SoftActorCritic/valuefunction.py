@@ -8,10 +8,10 @@ import jax.numpy as jnp
 import jax.random as jrandom
 import equinox as eqx
 import optax
-from typing import Tuple
 
 # import local libraries
 from src.SoftActorCritic.network import ValueNetwork
+from src.SoftActorCritic.FunctionApproximators.Functions import QuadraticFunction
 
 
 class ValueFunction:
@@ -29,9 +29,10 @@ class ValueFunction:
         :param depth: network depth (default: 2) [int]
         """
         out_size = kwargs.get('out_size', 1)
-        width = kwargs.get('width', 128)
+        width = kwargs.get('width', 32)
         depth = kwargs.get('depth', 2)
         self.model = ValueNetwork(in_size, out_size, width, depth, key)
+        #self.model = QuadraticFunction(in_size, key)
         self.optimizer = optax.adam(learning_rate)
         self.opt_state = self.optimizer.init(self.model)
     
@@ -43,6 +44,7 @@ class ValueFunction:
         """
         return self.model(state)
     
+    @eqx.filter_jit
     def loss(self, model, state, target) -> jnp.ndarray:
         """
         Compute loss of the value-network
@@ -52,11 +54,11 @@ class ValueFunction:
         :return: loss [jnp.ndarray]
         """
         pred = jax.vmap(model)(state)
-        pred = jnp.reshape(pred, target.shape)
+        #pred = jnp.reshape(pred, target.shape) #TODO: may be redundant > check
         return jnp.mean((pred - target)**2)
     
     #@eqx.filter_jit
-    def value_and_grad(self, state: jnp.ndarray, target: jnp.ndarray) -> Tuple:
+    def value_and_grad(self, state, target):
         """
         Compute loss and gradient of the value-network
         :param state: state [jnp.ndarray]
