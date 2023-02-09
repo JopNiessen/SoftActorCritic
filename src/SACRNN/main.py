@@ -101,6 +101,7 @@ class SACAgent:
         # actor
         self.actor = PolicyFunction(self.obs_size, self.ctrl_size, lr_pi, keys[0], control_limit=self.control_limit)
         self.rec_actor = RecurrentPolicyFunction(self.obs_size + self.ctrl_size, self.ctrl_size, lr_pi, key=keys[0])
+        self.rec_actor_hidden = jnp.zeros(self.obs_size)
         
         # v function
         self.VF = ValueFunction(self.obs_size, lr_v, keys[1])
@@ -123,7 +124,8 @@ class SACAgent:
         if self.step_count < self.initial_random_steps and learning:
             control = jrandom.uniform(key, shape=(1,), minval=-1, maxval=1) * self.control_limit
         else:
-            control, _ = self.actor(state, key)
+            #control, _ = self.actor(state, key)
+            control, _, self.rec_actor_hidden = self.rec_actor.step(state, self.prev_control, self.rec_actor_hidden, key)
         
         return control
     
@@ -157,7 +159,8 @@ class SACAgent:
         traj_obs, traj_control, state, control, reward, next_state, done = self._sample_from_buffer(batch_size)
 
         keys = jrandom.split(key, len(state))
-        new_control, log_prob = jax.vmap(self.actor)(state, keys)
+        #new_control, log_prob = jax.vmap(self.actor)(state, keys)
+        new_control, log_prob = jax.vmap(self.rec_actor)(traj_obs, traj_control, keys)
         
         # update alpha (dual problem)
         alpha_loss, alpha_grads = jax.value_and_grad(self.alpha_loss_fn)(self.log_alpha, log_prob)
@@ -199,7 +202,7 @@ class SACAgent:
 
         # update value function
         self.VF.update(v_grads)
-        return pi_loss, q_loss, v_loss, rpi_loss#alpha_loss
+        return rpi_loss, q_loss, v_loss, pi_loss#alpha_loss
     
     def train(self, n_epochs, key, batch_size=100, plotting_interval = 200, record=False):
 
@@ -208,7 +211,7 @@ class SACAgent:
         score = 0
         
         for _ in range(n_epochs):
-            _, _, reward, next_state, done = self.step(state, key, learning=True)
+            _, control, reward, next_state, done = self.step(state, key, learning=True)
 
             # take step
             state = next_state
@@ -217,9 +220,13 @@ class SACAgent:
             key, subkey = jrandom.split(key)
 
             if done:
-                state = self.env.reset()
+                state = self.env.reset(sigma=jnp.array([3,1]))
                 scores.append(score)
                 score = 0
+                self.prev_control = control
+                self.rec_actor_hidden = jnp.zeros(self.obs_size)
+            else:
+                self.prev_control = jnp.array([0])
 
             # update actor and critic networks
             if (self.buffer.size >= batch_size and self.step_count > self.initial_random_steps):

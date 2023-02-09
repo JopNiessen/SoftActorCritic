@@ -40,7 +40,7 @@ class Linear_SDI:
         self.A = jnp.array([[0, 1], [0, -k]])
         self.B = jnp.array([0, b])
         self.C = jnp.identity(self.dim)
-        self.v = jnp.array([[0, 0], [0, 0]])      # observation noise
+        self.v = jnp.array([[.1, 0], [0, .1]])      # observation noise
         self.w = jnp.array([[0, 0], [0, .2]])       # system noise
 
         """Cost parameters"""
@@ -102,14 +102,14 @@ class Linear_SDI:
         x = state
         return x.T @ self.F @ x
 
-    def reset(self, x0=None, T=None, key=jrandom.PRNGKey(randint(0, high=1000))):
+    def reset(self, x0=None, T=None, sigma=1, key=jrandom.PRNGKey(randint(0, high=1000))):
         """
         Reset state
         :param x0: initial state
         """
         key = random_key(key)
         if x0 == None:
-            self.state = jrandom.normal(key, (self.dim,))
+            self.state = jrandom.normal(key, (self.dim,)) * sigma
         else:
             self.state = x0
         
