@@ -18,7 +18,6 @@ class Orbital_SDI:
         """
         This class describes a 2 dimensional linear dynamical system with gaussian noise
 
-        :param x0: initial state
         :param b: bias term
         :param k: friction
         :param dt: time step size
@@ -37,8 +36,8 @@ class Orbital_SDI:
         self.A = jnp.array([[0, 1], [0, -k]])
         self.B = jnp.array([0, b])
         self.C = jnp.identity(self.dim)
-        self.v = jnp.array([[0, 0], [0, 0]])
-        self.w = jnp.array([[0, 0], [0, .2]])
+        self.v = jnp.array([[.1, 0], [0, .1]])      # observation noise
+        self.w = jnp.array([[0, 0], [0, .2]])       # system noise
 
         """Cost parameters"""
         self.F = jnp.array([[1, 0], [0, 0]])
@@ -46,6 +45,9 @@ class Orbital_SDI:
         self.R = .1
 
         self.reset()
+    
+    def predict_deriv(self, state, control):
+        return jnp.dot(self.A, state) + self.B * control
     
     def state_update(self, control, key):
         xi = jrandom.normal(key, (self.dim, ))
@@ -103,15 +105,22 @@ class Orbital_SDI:
         x = state
         return x.T @ self.F @ x
 
-    def reset(self, key=jrandom.PRNGKey(randint(0, high=1000))):
+    def reset(self, x0=None, T=None, key=jrandom.PRNGKey(randint(0, high=1000))):
         """
         Reset state
         :param x0: initial state
         """
         key = random_key(key)
-        theta = jrandom.uniform(key, minval=-1, maxval=1) * jnp.pi
-        w = jrandom.normal(key)
-        self.state = jnp.array([theta, w])
+        if x0 == None:
+            theta = jrandom.uniform(key, minval=-1, maxval=1) * jnp.pi
+            w = jrandom.normal(key)
+            self.state = jnp.array([theta, w])
+        else:
+            self.state = x0
+        
+        if T != None:
+            self.end_time = T
+
         self.t = 0
         self.done = False
         return self._get_obs(key)

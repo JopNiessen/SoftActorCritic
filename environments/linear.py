@@ -14,59 +14,65 @@ from numpy.random import randint
 
 
 # For now, it uses time steps (dt) of 1 sec. With x1 = 'velocity in (m/s)'
-class StochasticDoubleIntegrator:
-    def __init__(self, x0, b=1, k=.02, dt=.1, end_time=4):
+class Linear_SDI:
+    def __init__(self, b=1, k=.2, dt=.1, end_time=20):
         """
         This class describes a 2 dimensional linear dynamical system with gaussian noise
 
-        :param x0: initial state
         :param b: bias term
         :param k: friction
         :param dt: time step size
         :param time_horizon: end time
         """
-        self.state = x0
+        self.state = None
         self.done = False
 
         self.t = 0
         self.dt = dt
         self.end_time = end_time
         
-        self.dim = len(x0)
-        self.boundary = jnp.array([jnp.inf, jnp.inf])
-
-        self.observation_space = x0
-        self.action_space = jnp.array([[-1, 1]])*2
+        self.dim = 2
+        self.boundary = False
+        self.min = -jnp.array([jnp.inf, jnp.inf])
+        self.max = jnp.array([jnp.inf, jnp.inf])
 
         """System parameters"""
         self.A = jnp.array([[0, 1], [0, -k]])
         self.B = jnp.array([0, b])
         self.C = jnp.identity(self.dim)
-        self.v = jnp.array([[0, 0], [0, 0]])
-        self.w = jnp.array([[0, 0], [0, .5]])
+        self.v = jnp.array([[0, 0], [0, 0]])      # observation noise
+        self.w = jnp.array([[0, 0], [0, .2]])       # system noise
 
         """Cost parameters"""
         self.F = jnp.array([[1, 0], [0, 0]])
         self.G = jnp.array([[1, 0], [0, 0]])
         self.R = 1
+
+        self.reset()
+    
+    def predict_deriv(self, state, control):
+        return jnp.dot(self.A, state) + self.B * control
     
     def step(self, control, key=None):
         key, subkey = jrandom.split(random_key(key))
         xi = jrandom.normal(key, (self.dim, ))
         self.state = self.state + self.dt * (jnp.dot(self.A, self.state) + self.B * control) + jnp.sqrt(self.dt) * np.dot(self.w, xi)
-        self.t += 1
+        self.t += self.dt
         
         observation = self._get_obs(subkey)
-        reward = -self.cost(self.state, control)[0]
+        reward = -self.cost(self.state, control)
 
-        self._check_boundary()
+        self._clip_state()
+        self._check_time()
 
         return observation, reward, self.done, {}
 
-    def _check_boundary(self):
-        if any(self.state >= self.boundary):
-            self.done = True
-        elif self.t >= self.end_time:
+    def _clip_state(self):
+        if self.boundary:
+            self.state = jnp.clip(self.state, a_min=self.min, a_max=self.max)
+    
+    def _check_time(self):
+        if self.t >= self.end_time:
             self.done = True
 
     def _get_obs(self, key):
@@ -96,16 +102,23 @@ class StochasticDoubleIntegrator:
         x = state
         return x.T @ self.F @ x
 
-    def reset(self, key=jrandom.PRNGKey(randint(0, high=1000))):
+    def reset(self, x0=None, T=None, key=jrandom.PRNGKey(randint(0, high=1000))):
         """
         Reset state
         :param x0: initial state
         """
         key = random_key(key)
-        self.state = jrandom.normal(key, (self.dim,))
+        if x0 == None:
+            self.state = jrandom.normal(key, (self.dim,))
+        else:
+            self.state = x0
+        
+        if T != None:
+            self.end_time = T
+        
         self.t = 0
         self.done = False
-        return self.state
+        return self._get_obs(key)
     
     def sample(self, key=None):
         key = random_key(key)
