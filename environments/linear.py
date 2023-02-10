@@ -19,10 +19,10 @@ class Linear_SDI:
         """
         This class describes a 2 dimensional linear dynamical system with gaussian noise
 
-        :param b: bias term
-        :param k: friction
-        :param dt: time step size
-        :param time_horizon: end time
+        :param b: bias term [float]
+        :param k: friction [float]
+        :param dt: time step size [float]
+        :param end_time: end-time of a trial [int]
         """
         self.state = None
         self.done = False
@@ -40,7 +40,7 @@ class Linear_SDI:
         self.A = jnp.array([[0, 1], [0, -k]])
         self.B = jnp.array([0, b])
         self.C = jnp.identity(self.dim)
-        self.v = jnp.array([[.1, 0], [0, .1]])      # observation noise
+        self.v = jnp.array([[.5, 0], [0, .5]])      # observation noise
         self.w = jnp.array([[0, 0], [0, .2]])       # system noise
 
         """Cost parameters"""
@@ -51,6 +51,11 @@ class Linear_SDI:
         self.reset()
     
     def predict_deriv(self, state, control):
+        """
+        State derivative
+        :param state: state [jnp.array]
+        :param control: control [float]
+        """
         return jnp.dot(self.A, state) + self.B * control
     
     def step(self, control, key=None):
@@ -68,10 +73,16 @@ class Linear_SDI:
         return observation, reward, self.done, {}
 
     def _clip_state(self):
+        """
+        Clip system state > prevent state from exiting the given bounds (self.min, self.max)
+        """
         if self.boundary:
             self.state = jnp.clip(self.state, a_min=self.min, a_max=self.max)
     
     def _check_time(self):
+        """
+        Check if trial end-time has been reached
+        """
         if self.t >= self.end_time:
             self.done = True
 
@@ -105,7 +116,10 @@ class Linear_SDI:
     def reset(self, x0=None, T=None, sigma=1, key=jrandom.PRNGKey(randint(0, high=1000))):
         """
         Reset state
-        :param x0: initial state
+        :param x0: new starting state [jnp.array]
+        :param T: new trial end-time [int]
+        :param sigma: variance of random new starting state [jnp.array]
+        :param key: [jrandom.PRNGKey]
         """
         key = random_key(key)
         if x0 == None:
@@ -121,6 +135,10 @@ class Linear_SDI:
         return self._get_obs(key)
     
     def sample(self, key=None):
+        """
+        Get random control
+        :return: random control value
+        """
         key = random_key(key)
         return jrandom.uniform(key, (1,), minval=self.action_space[0,0], maxval=self.action_space[0,1])
     

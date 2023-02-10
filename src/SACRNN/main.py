@@ -99,8 +99,8 @@ class SACAgent:
         self.alpha_opt_state = self.alpha_optimizer.init(self.log_alpha)
 
         # actor
-        self.actor = PolicyFunction(self.obs_size, self.ctrl_size, lr_pi, keys[0], control_limit=self.control_limit)
-        self.rec_actor = RecurrentPolicyFunction(self.obs_size + self.ctrl_size, self.ctrl_size, lr_pi, key=keys[0])
+        #self.actor = PolicyFunction(self.obs_size, self.ctrl_size, lr_pi, keys[0], control_limit=self.control_limit)
+        self.rec_actor = RecurrentPolicyFunction(self.obs_size + self.ctrl_size, self.ctrl_size, lr_pi, key=keys[0], control_limit=self.control_limit)
         self.rec_actor_hidden = jnp.zeros(self.obs_size)
         
         # v function
@@ -183,8 +183,8 @@ class SACAgent:
         
         if self.step_count % self.policy_update_freq == 0:
             # update actor
-            pi_loss, pi_grads = self.actor.value_and_grad(state, alpha, v_pred, self.q_min, keys)
-            self.actor.update(pi_grads)
+            #pi_loss, pi_grads = self.actor.value_and_grad(state, alpha, v_pred, self.q_min, keys)
+            #self.actor.update(pi_grads)
 
             rpi_loss, rpi_grads = self.rec_actor.value_and_grad(traj_obs, traj_control, alpha, v_pred, self.q_min, keys)
             self.rec_actor.update(rpi_grads)
@@ -192,7 +192,7 @@ class SACAgent:
             # update value target
             self._update_value_target()
         else:
-            pi_loss = 0
+            #pi_loss = 0
             rpi_loss = 0
             
         # update Q-functions
@@ -202,7 +202,7 @@ class SACAgent:
 
         # update value function
         self.VF.update(v_grads)
-        return rpi_loss, q_loss, v_loss, pi_loss#alpha_loss
+        return rpi_loss, q_loss, v_loss, alpha_loss
     
     def train(self, n_epochs, key, batch_size=100, plotting_interval = 200, record=False):
 
@@ -247,7 +247,7 @@ class SACAgent:
             
             if record:
                 self.recording['state'].append(state)
-                params = self.actor.model.mu_layer.weight
+                params = self.rec_actor.model.mu_layer.weight
                 self.recording['angle'].append(jnp.arctan2(params[0,0], params[0,1]))
                 self.recording['force'].append(jnp.linalg.norm(params[0]))
                 self.recording['time'].append(self.env.t)

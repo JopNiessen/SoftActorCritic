@@ -85,7 +85,7 @@ class RecurrentPolicyFunction:
     """
     Gaussian policy (actor) of the Soft Actor-Critic (SAC) algorithm
     """
-    def __init__(self, in_size: int, out_size: int, learning_rate: float, key: jrandom.PRNGKey, control_limit: int = 1):
+    def __init__(self, in_size, out_size, learning_rate, key, control_limit = 1):
         """
         Initialize the policy function
         :param in_size: input size [int]

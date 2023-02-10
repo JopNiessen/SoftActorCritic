@@ -102,3 +102,14 @@ class PolicyRNN(eqx.Module):
         log_prob = logpdf(z, loc=mu, scale=std) - jnp.log(1 - control**2 + 1e-5)
         
         return control * self.control_lim, log_prob, h_out
+    
+    def predict_step(self, obs, control, hidden):
+        input = jnp.hstack((obs, control))
+
+        hidden = self.cell(input, hidden)
+        x = hidden
+
+        # apply mu layer
+        mu = jax.nn.tanh(self.mu_layer(x)) * self.control_lim
+
+        return mu, hidden
