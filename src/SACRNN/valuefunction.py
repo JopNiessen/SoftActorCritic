@@ -42,7 +42,6 @@ class ValueFunction:
         """
         return self.model(state)
     
-    @eqx.filter_jit
     def loss(self, model, state, target) -> jnp.ndarray:
         """
         Compute loss of the value-network
@@ -52,7 +51,6 @@ class ValueFunction:
         :return: loss [jnp.ndarray]
         """
         pred = jax.vmap(model)(state)
-        #pred = jnp.reshape(pred, target.shape) #TODO: may be redundant > check
         return jnp.mean((pred - target)**2)
     
     #@eqx.filter_jit
@@ -66,6 +64,7 @@ class ValueFunction:
         """
         return eqx.filter_value_and_grad(self.loss)(self.model, state, target)
     
+    #@eqx.filter_jit
     def update(self, grads):
         """
         Update network weights

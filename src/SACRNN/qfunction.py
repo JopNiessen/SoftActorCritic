@@ -44,7 +44,6 @@ class QFunction:
         """
         return self.model(state, control)
     
-    @eqx.filter_jit
     def loss(self, model, state, control, target) -> jnp.ndarray:
         """
         Compute loss of the Q-network
@@ -55,7 +54,6 @@ class QFunction:
         :return: loss [jnp.ndarray]
         """
         pred = jax.vmap(model)(state, control)
-        #pred = jnp.reshape(pred, target.shape) #TODO:may be redundant > check
         return jnp.mean((pred - target)**2)
     
     #@eqx.filter_jit
@@ -70,6 +68,7 @@ class QFunction:
         """
         return eqx.filter_value_and_grad(self.loss)(self.model, state, control, target)
     
+    #@eqx.filter_jit
     def update(self, grads):
         """
         Update network weights

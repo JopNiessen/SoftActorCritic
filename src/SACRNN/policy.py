@@ -126,6 +126,7 @@ class RecurrentPolicyFunction:
         advantage = jnp.reshape(advantage, log_prob.shape)
         return jnp.mean(alpha * log_prob - advantage)
     
+    #@eqx.filter_jit
     def value_and_grad(self, trajectory, controls, alpha, v_pred, q_min, keys):
         """
         Compute loss and gradient of the policy-network
@@ -139,6 +140,7 @@ class RecurrentPolicyFunction:
         """
         return eqx.filter_value_and_grad(self.loss)(self.model, trajectory, controls, alpha, v_pred, q_min, keys)
     
+    #@eqx.filter_jit
     def update(self, grads):
         """
         Update network weights

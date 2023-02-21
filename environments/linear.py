@@ -67,8 +67,9 @@ class Linear_SDI:
         observation = self._get_obs(subkey)
         reward = -self.cost(self.state, control)
 
-        self._clip_state()
         self._check_time()
+        if self.boundary:
+            self._check_state()
 
         return observation, reward, self.done, {}
 
@@ -78,6 +79,10 @@ class Linear_SDI:
         """
         if self.boundary:
             self.state = jnp.clip(self.state, a_min=self.min, a_max=self.max)
+    
+    def _check_state(self):
+        if any(self.state < self.min) or any(self.state > self.max):
+            self.done = True
     
     def _check_time(self):
         """
