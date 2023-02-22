@@ -8,11 +8,21 @@ import optax
 
 # import local libraries
 from src.SAC_FP.network import LinearPolicyNetwork, QNetwork, ValueNetwork
+from src.SAC_FP.recurrent_network import PolicyRNN
 
 
-"""Initialize pi-function"""
-def pi_init(in_size, out_size, lr, key):
-    model = LinearPolicyNetwork(in_size, out_size, key)
+"""Initialize recurrent policy"""
+def pi_rnn_init(in_size, out_size, lr, key):
+    model = PolicyRNN(in_size, out_size, key)
+    optimizer = optax.adam(lr)
+    opt_state = optimizer.init(model)
+
+    return model, optimizer, opt_state
+
+
+"""Initialize policy"""
+def pi_init(in_size, out_size, lr, key, control_scale=1):
+    model = LinearPolicyNetwork(in_size, out_size, key, control_scale=control_scale)
     optimizer = optax.adam(lr)
     opt_state = optimizer.init(model)
 

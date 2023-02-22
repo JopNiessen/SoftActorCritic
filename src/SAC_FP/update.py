@@ -11,7 +11,7 @@ import optax
 def update_model(params, grads):
     model, optimizer, opt_state = params
     updates, opt_state = optimizer.update(grads, opt_state)
-    model = optax.apply_updates(model, updates)
+    model = eqx.apply_updates(model, updates)
     return model, optimizer, opt_state
 
 

@@ -15,25 +15,25 @@ class LinearPolicyNetwork(eqx.Module):
     mu_layer: eqx.nn.Linear
     log_std_layer: list
 
-    # log_std_min: jnp.float32
-    # log_std_max: jnp.float32
-    # control_lim: jnp.float32
+    log_std_min: jnp.float32
+    log_std_max: jnp.float32
+    control_scale: jnp.float32
 
     def __init__(
         self,
         in_size: int,
         out_size: int,
         key,
-        # control_limit: float = 1,
-        # log_std_min: float = -20,
-        # log_std_max: float = 2
+        control_scale: float = 1,
+        log_std_min: float = -20,
+        log_std_max: float = 2
     ):
         keys = jrandom.split(key, 3)
-        # self.control_lim = control_limit
+        self.control_scale = control_scale
 
-        # # set log-std
-        # self.log_std_min = log_std_min
-        # self.log_std_max = log_std_max
+        # set log-std
+        self.log_std_min = log_std_min
+        self.log_std_max = log_std_max
 
         # set mu layer
         self.mu_layer = eqx.nn.Linear(in_size, out_size, use_bias=False, key=keys[0])
@@ -49,13 +49,10 @@ class LinearPolicyNetwork(eqx.Module):
         # apply mu layer
         mu = jax.nn.tanh(self.mu_layer(x))
 
-        # apply log-std layer
-        log_std_min, log_std_max = -20, 2
-
         for layer in self.log_std_layer[:-1]:
             x = jax.nn.relu(layer(x))
         log_std = jnp.tanh(self.log_std_layer[-1](x))
-        log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
+        log_std = self.log_std_min + 0.5 * (self.log_std_max - self.log_std_min) * (log_std + 1)
         std = jnp.exp(log_std)
         
         # sample control
@@ -65,11 +62,11 @@ class LinearPolicyNetwork(eqx.Module):
         control = jnp.tanh(z)                       # TODO: jnp.tanh appearantly can yield a value slightly higher than 1.
         log_prob = logpdf(z, loc=mu, scale=std) - jnp.log(1 - control**2 + 1e-5)
         
-        return control, log_prob
+        return control * self.control_scale, log_prob
     
     def predict(self, state):
         mu = jax.nn.tanh(self.mu_layer(state))
-        return mu
+        return mu * self.control_scale
 
 
 """Q Network (critic)"""
