@@ -15,7 +15,7 @@ from numpy.random import randint
 
 # For now, it uses time steps (dt) of 1 sec. With x1 = 'velocity in (m/s)'
 class Linear_SDI:
-    def __init__(self, b=1, k=.2, dt=.1, end_time=20):
+    def __init__(self, b=1, k=.2, dt=.1, end_time=20, **kwargs):
         """
         This class describes a 2 dimensional linear dynamical system with gaussian noise
 
@@ -32,9 +32,9 @@ class Linear_SDI:
         self.end_time = end_time
         
         self.dim = 2
-        self.boundary = False
-        self.min = -jnp.array([jnp.inf, jnp.inf])
-        self.max = jnp.array([jnp.inf, jnp.inf])
+        self.boundary = kwargs.get('boundary', False)
+        self.min = kwargs.get('min', -jnp.array([jnp.inf, jnp.inf]))
+        self.max = kwargs.get('max', jnp.array([jnp.inf, jnp.inf]))
 
         """System parameters"""
         self.A = jnp.array([[0, 1], [0, -k]])
@@ -146,6 +146,12 @@ class Linear_SDI:
         """
         key = random_key(key)
         return jrandom.uniform(key, (1,), minval=self.action_space[0,0], maxval=self.action_space[0,1])
+    
+    def _set_boundary(self, **kwargs):
+        self.boundary = kwargs.get('boundary', self.boundary)
+        self.min = kwargs.get('min', self.min)
+        self.max = kwargs.get('max', self.max)
+        self.end_time = kwargs.get('end_time', self.end_time)
     
     def close(self):
         pass
