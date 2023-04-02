@@ -61,7 +61,7 @@ class Linear_SDI:
     def step(self, control, key=None):
         key, subkey = jrandom.split(random_key(key))
         xi = jrandom.normal(key, (self.dim, ))
-        self.state = self.state + self.dt * (jnp.dot(self.A, self.state) + self.B * control) + jnp.sqrt(self.dt) * np.dot(self.w, xi)
+        self.state = self.state + self.dt * (jnp.dot(self.A, self.state) + self.B * control) + self.dt * np.dot(self.w, xi)
         self.t += self.dt
         
         observation = self._get_obs(subkey)

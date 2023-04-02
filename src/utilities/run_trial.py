@@ -26,16 +26,18 @@ def run_trial(
     Y = np.zeros((len(t_space), len(y)))
     S = np.zeros((len(t_space), len(s)))
     U = np.zeros((len(t_space), 1))
+    R = 0
 
     for it in range(len(t_space)):
         if recurrent:
             u, hid = controller(y, u, hid)
         else:
             u = controller(y)
-        y, _, _, _ = env.step(u)
+        y, rew, _, _ = env.step(u)
         Y[it] = y
         S[it] = env.state
         U[it] = u
+        R += rew
     
-    return S, Y, U
+    return S, Y, U, R
 

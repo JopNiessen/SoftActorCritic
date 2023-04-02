@@ -215,6 +215,7 @@ class SACAgent:
     def train(self, n_epochs, key, batch_size=100, plotting_interval = 200, record=False):
 
         state = self.env.reset()
+        self.buffer.clear()
         scores = []
         score = 0
 

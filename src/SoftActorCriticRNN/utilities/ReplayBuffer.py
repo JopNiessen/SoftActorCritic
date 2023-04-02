@@ -60,9 +60,7 @@ class ReplayBuffer():
             self.trial_idx += 1
         
         if done:
-            self.obs_history = np.zeros((self.history_size, self.obs_size))
-            self.control_history = np.zeros((self.history_size+1, self.control_size))
-            self.trial_idx = 0
+            self.clear()
 
     def store(self, obs, ctrl, rew, next_obs, done, importance=1):
         """
@@ -100,6 +98,11 @@ class ReplayBuffer():
                     reward = self.reward[idxs],
                     next_obs = self.next_observation[idxs],
                     done = self.done[idxs])
+    
+    def clear(self):
+        self.obs_history = np.zeros((self.history_size, self.obs_size))
+        self.control_history = np.zeros((self.history_size+1, self.control_size))
+        self.trial_idx = 0
     
     def __len__(self):
         return self.size
