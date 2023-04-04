@@ -203,6 +203,17 @@ class SACAgent:
         else:
             pi_loss = 0
         
+        # Aw = q1_grads.A.weight
+        # Bw = q1_grads.B.weight
+        # print(f'q1 \tA: mean={jnp.mean(jnp.abs(Aw)):.5f} \t-\tB: mean={jnp.mean(jnp.abs(Bw)):.5f}')
+        # Aw = q2_grads.A.weight
+        # Bw = q2_grads.B.weight
+        # print(f'q2 \tA: mean={jnp.mean(jnp.abs(Aw)):.5f} \t-\tB: mean={jnp.mean(jnp.abs(Bw)):.5f}')
+        # Aw = v_grads.A.weight
+        # Bw = v_grads.B.weight
+        # print(f'v \tA: mean={jnp.mean(jnp.abs(Aw)):.5f} \t-\tB: mean={jnp.mean(jnp.abs(Bw)):.5f}')
+
+
         # update Q-functions
         self.QF1.update(q1_grads)
         self.QF2.update(q2_grads)

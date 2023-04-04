@@ -5,7 +5,6 @@ by J. Niessen
 created on: 2022.10.24
 """
 
-
 import numpy as np
 import jax.numpy as jnp
 import jax.random as jrandom
@@ -13,8 +12,7 @@ import jax.random as jrandom
 from numpy.random import randint
 
 
-# For now, it uses time steps (dt) of 1 sec. With x1 = 'velocity in (m/s)'
-class Linear_SDI:
+class Box_SDI:
     def __init__(self, b=1, k=.2, dt=.1, end_time=20, **kwargs):
         """
         This class describes a 2 dimensional linear dynamical system with gaussian noise
@@ -32,9 +30,8 @@ class Linear_SDI:
         self.end_time = end_time
         
         self.dim = 2
-        self.boundary = kwargs.get('boundary', False)
-        self.min = kwargs.get('min', -jnp.array([jnp.inf, jnp.inf]))
-        self.max = kwargs.get('max', jnp.array([jnp.inf, jnp.inf]))
+        self.min = kwargs.get('min', jnp.array([-5, -jnp.inf]))
+        self.max = kwargs.get('max', jnp.array([5, jnp.inf]))
 
         """System parameters"""
         self.A = jnp.array([[0, 1], [0, -k]])
@@ -67,9 +64,8 @@ class Linear_SDI:
         observation = self._get_obs(subkey)
         reward = -self.cost(self.state, control)
 
+        self._clip_state()
         self._check_time()
-        if self.boundary:
-            self._check_state()
 
         return observation, reward, self.done, {}
 
@@ -77,12 +73,9 @@ class Linear_SDI:
         """
         Clip system state > prevent state from exiting the given bounds (self.min, self.max)
         """
-        if self.boundary:
-            self.state = jnp.clip(self.state, a_min=self.min, a_max=self.max)
-    
-    def _check_state(self):
         if any(self.state < self.min) or any(self.state > self.max):
-            self.done = True
+            self.state = jnp.array([1, -1]) * self.state
+        self.state = jnp.clip(self.state, a_min=self.min, a_max=self.max)
     
     def _check_time(self):
         """

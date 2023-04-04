@@ -23,8 +23,10 @@ def run_trial(
     u = 0
     hid = jnp.zeros(hidden_size)
 
-    Y = np.zeros((len(t_space), len(y)))
-    S = np.zeros((len(t_space), len(s)))
+    Y = np.zeros((len(t_space)+1, len(y)))
+    S = np.zeros((len(t_space)+1, len(s)))
+    Y[0] = y
+    S[0] = s
     U = np.zeros((len(t_space), 1))
     R = 0
 
@@ -34,8 +36,8 @@ def run_trial(
         else:
             u = controller(y)
         y, rew, _, _ = env.step(u)
-        Y[it] = y
-        S[it] = env.state
+        Y[it+1] = y
+        S[it+1] = env.state
         U[it] = u
         R += rew
     
