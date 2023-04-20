@@ -30,7 +30,6 @@ class WilsonCowanCell(eqx.Module):
     def __call__(self, input, hidden):
         return self.encoder(input, hidden)
     
-    @eqx.filter_jit
     def forward_seq(self, input):
         hidden = jnp.zeros((self.hidden_size,))
 

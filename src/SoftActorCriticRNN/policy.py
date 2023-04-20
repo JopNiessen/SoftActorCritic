@@ -78,3 +78,40 @@ class PolicyFunctionRNN:
         self.model = eqx.apply_updates(self.model, updates)
 
 
+"""Function based approach"""
+def generate_instance(in_size, out_size, learning_rate, key, **kwargs):
+    """
+    Initialize the policy function
+    :param in_size: input size [int]
+    :param out_size: output size [int]
+    :param learning_rate: learning rate [float]
+    :param key: key [jrandom.PRNGKey]
+    :param control_limit: maximal control magnitude [int]
+    """
+    model = PolicyRNN(in_size, out_size, key, **kwargs)
+    optimizer = optax.adam(learning_rate)
+    opt_state = optimizer.init(model)
+    return model, optimizer, opt_state
+
+
+@eqx.filter_value_and_grad
+def loss_fn(model, state_seq, control_seq, alpha, v_pred, qf1, qf2, keys):
+    """"
+    Compute loss of the policy-network
+    """
+    new_control, log_prob = jax.vmap(model)(state_seq, control_seq, keys)
+    q1 = jax.vmap(qf1)(state_seq, control_seq, new_control)
+    q2 = jax.vmap(qf2)(state_seq, control_seq, new_control)
+    q_pred = jax.vmap(jax.lax.min)(q1, q2)
+    advantage = q_pred - v_pred
+    return jnp.mean(alpha * log_prob - advantage)
+
+
+@eqx.filter_jit
+def make_step(params, state_traj, control_traj, alpha, v_pred, qf1, qf2, keys):
+    (model, optim, opt_state) = params
+    loss, grads = loss_fn(model, state_traj, control_traj, alpha, v_pred, qf1, qf2, keys)
+    updates, opt_state = optim.update(grads, opt_state)
+    model = eqx.apply_updates(model, updates)
+    return loss, (model, optim, opt_state)
+

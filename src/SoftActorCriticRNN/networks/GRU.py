@@ -9,7 +9,6 @@ import equinox as eqx
 
 class GRUCell(eqx.Module):
     cell: eqx.Module
-
     hidden_size: int
 
     def __init__(self, in_size, hidden_size, key, use_bias=False, **kwargs):
@@ -20,7 +19,6 @@ class GRUCell(eqx.Module):
     def __call__(self, input, hidden):
         return self.encoder(input, hidden)
     
-    @eqx.filter_jit
     def forward_seq(self, input):
         hidden = jnp.zeros((self.hidden_size,))
 
