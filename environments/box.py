@@ -24,6 +24,7 @@ class Box_SDI:
         """
         self.state = None
         self.done = False
+        self.edge = False
 
         self.t = 0
         self.dt = dt
@@ -67,7 +68,7 @@ class Box_SDI:
         self._clip_state()
         self._check_time()
 
-        return observation, reward, self.done, {}
+        return observation, reward, self.done, self.edge
 
     def _clip_state(self):
         """
@@ -75,6 +76,9 @@ class Box_SDI:
         """
         if any(self.state < self.min) or any(self.state > self.max):
             self.state = jnp.array([1, -1]) * self.state
+            self.edge = True
+        else:
+            self.edge = False
         self.state = jnp.clip(self.state, a_min=self.min, a_max=self.max)
     
     def _check_time(self):

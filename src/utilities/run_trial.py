@@ -9,6 +9,7 @@ import numpy as np
 def run_trial(
     env,
     controller,
+    key,
     x0 = None,
     **kwargs
 ):
@@ -35,7 +36,7 @@ def run_trial(
             u, hid = controller(y, u, hid)
         else:
             u = controller(y)
-        y, rew, _, _ = env.step(u)
+        y, rew, _, _ = env.step(u, key=key)
         Y[it+1] = y
         S[it+1] = env.state
         U[it] = u

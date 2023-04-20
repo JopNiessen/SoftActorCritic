@@ -4,9 +4,8 @@ Linear Quadratic Gaussian Regulator
 i.e. Kalman filter + Linear Quadratic Regulator
 """
 
-from LQR import LQRSolver
-from KalmanFilter import KalmanFilter
-
+from src.OptimalControl.LQR import LQRSolver
+from src.OptimalControl.KalmanFilter import KalmanFilter
 
 
 class LQGSolver:

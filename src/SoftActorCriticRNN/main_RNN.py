@@ -101,6 +101,9 @@ class SACAgent:
                 raise Exception('Observation and-or control dim could not be determined')
             else:
                 pass
+        
+        # RNN type
+        self.rnntype = kwargs.get('RNN_type', 'WilsonCowan')
 
         """Replay buffer"""
         memory_decay = kwargs.get('memory_decay', 0)
@@ -113,15 +116,15 @@ class SACAgent:
         self.alpha_opt_state = self.alpha_optimizer.init(self.log_alpha)
 
         """Actor"""
-        self.actor = PolicyFunctionRNN(self.obs_size+self.ctrl_size, self.ctrl_size, lr_pi, keys[0], control_limit=self.control_limit, hidden_size=self.hidden_size)
+        self.actor = PolicyFunctionRNN(self.obs_size+self.ctrl_size, self.ctrl_size, lr_pi, keys[0], **kwargs)
         
         """Value function"""
-        self.VF = RValueFunction(self.obs_size, self.ctrl_size, lr_v, keys[1])
-        self.VF_target = RValueFunction(self.obs_size, self.ctrl_size, lr_v, keys[1])
+        self.VF = RValueFunction(self.obs_size + self.ctrl_size, lr_v, keys[1], **kwargs)
+        self.VF_target = RValueFunction(self.obs_size + self.ctrl_size, lr_v, keys[1], **kwargs)
         
         """Q-functions"""
-        self.QF1 = RQFunction(self.obs_size, self.ctrl_size, lr_q, keys[2], hidden_size=self.hidden_size)
-        self.QF2 = RQFunction(self.obs_size, self.ctrl_size, lr_q, keys[3], hidden_size=self.hidden_size)
+        self.QF1 = RQFunction(self.obs_size + self.ctrl_size, self.ctrl_size, lr_q, keys[2], **kwargs)
+        self.QF2 = RQFunction(self.obs_size + self.ctrl_size, self.ctrl_size, lr_q, keys[3], **kwargs)
 
         # store losses
         self.tracker = Tracker(['pi_loss', 'q_loss', 'v_loss', 'alpha_loss'])
@@ -134,6 +137,7 @@ class SACAgent:
         return -jnp.mean(jnp.exp(log_alpha) * (log_prob + self.target_entropy))
     
     def get_control(self, state, control, hidden_state, key, learning=False):
+        """Select control based on current state and policy"""
         if self.step_count < self.initial_random_steps and learning:
             control = jrandom.uniform(key, shape=(1,), minval=-1, maxval=1) * self.control_limit
         else:
@@ -142,8 +146,9 @@ class SACAgent:
         return control, hidden_state
     
     def step(self, state, control, hidden_state, key, learning=False):
+        """Perform a single environment step"""
         control, hidden_state = self.get_control(state, control, hidden_state, key, learning=learning)
-        next_state, reward, done, _ = self.env.step(control)
+        next_state, reward, done, _ = self.env.step(control, key=key)
         
         if learning:
             self.buffer.feed(state, control, reward, next_state, done)
@@ -151,11 +156,13 @@ class SACAgent:
         return state, control, hidden_state, reward, next_state, done
     
     def q_min(self, state_seq, control_seq, control):
+        """Compute minimum of Q-functions"""
         q1 = self.QF1(state_seq, control_seq, control)
         q2 = self.QF2(state_seq, control_seq, control)
         return jax.lax.min(q1, q2)
     
     def _sample_from_buffer(self, batch_size):
+        """Sample a batch from the replay buffer"""
         samples = self.buffer.sample_batch(batch_size)
         traj_obs = jnp.array(samples['traj_obs'])
         traj_control = jnp.array(samples['traj_control'])
@@ -167,6 +174,7 @@ class SACAgent:
         return traj_obs, traj_control, state, control, reward, next_state, done
 
     def train_step(self, batch_size, key):
+        """Perform a single training step"""
         traj_state, traj_control, state, control, reward, next_state, done = self._sample_from_buffer(batch_size)
 
         keys = jrandom.split(key, len(state))
@@ -195,7 +203,7 @@ class SACAgent:
         
         if self.step_count % self.policy_update_freq == 0:
             # update actor
-            pi_loss, pi_grads = self.actor.value_and_grad(traj_state, traj_control, state, alpha, v_pred, self.q_min, keys)
+            pi_loss, pi_grads = self.actor.value_and_grad(traj_state, traj_control, state, alpha, v_pred, self.QF1, self.QF2, keys)
             self.actor.update(pi_grads)
         
             # update value target
@@ -203,16 +211,7 @@ class SACAgent:
         else:
             pi_loss = 0
         
-        # Aw = q1_grads.A.weight
-        # Bw = q1_grads.B.weight
-        # print(f'q1 \tA: mean={jnp.mean(jnp.abs(Aw)):.5f} \t-\tB: mean={jnp.mean(jnp.abs(Bw)):.5f}')
-        # Aw = q2_grads.A.weight
-        # Bw = q2_grads.B.weight
-        # print(f'q2 \tA: mean={jnp.mean(jnp.abs(Aw)):.5f} \t-\tB: mean={jnp.mean(jnp.abs(Bw)):.5f}')
-        # Aw = v_grads.A.weight
-        # Bw = v_grads.B.weight
-        # print(f'v \tA: mean={jnp.mean(jnp.abs(Aw)):.5f} \t-\tB: mean={jnp.mean(jnp.abs(Bw)):.5f}')
-
+        # print(f'iteration={self.step_count}')
 
         # update Q-functions
         self.QF1.update(q1_grads)
@@ -224,8 +223,23 @@ class SACAgent:
         return pi_loss, q_loss, v_loss, alpha_loss
     
     def train(self, n_epochs, key, batch_size=100, plotting_interval = 200, record=False):
+        """
+        Train the agent for n_epochs
 
-        state = self.env.reset()
+        Parameters
+        ----------
+        n_epochs : int
+            Number of epochs to train for
+        key : jax.random.PRNGKey
+            Random key for sampling
+        batch_size : int, optional
+            Batch size for training, by default 100
+        plotting_interval : int, optional
+            Interval for plotting, by default 200
+        record : bool, optional
+            Whether to record the training, by default False
+        """
+        state = self.env.reset(key=key)
         self.buffer.clear()
         scores = []
         score = 0
@@ -243,7 +257,7 @@ class SACAgent:
             key, subkey = jrandom.split(key)
 
             if done:
-                state = self.env.reset()
+                state = self.env.reset(key=key)
                 control = 0
                 hidden_state = jnp.zeros(self.hidden_size)
                 scores.append(score)
@@ -280,10 +294,16 @@ class SACAgent:
             target = eqx.tree_at(lambda model: model.general_layers[idx].weight, target, replace=weight)
             target = eqx.tree_at(lambda model: model.general_layers[idx].bias, target, replace=bias)
 
-        A_weight = base.A.weight * tau + target.A.weight * (1 - tau)
-        B_weight = base.B.weight * tau + target.B.weight * (1 - tau)
-        target = eqx.tree_at(lambda model: model.A.weight, target, replace=A_weight)
-        target = eqx.tree_at(lambda model: model.B.weight, target, replace=B_weight)
+        if self.rnntype == 'WilsonCowan':
+            A_weight = base.EncoderCell.A.weight * tau + target.EncoderCell.A.weight * (1 - tau)
+            B_weight = base.EncoderCell.B.weight * tau + target.EncoderCell.B.weight * (1 - tau)
+            target = eqx.tree_at(lambda model: model.EncoderCell.A.weight, target, replace=A_weight)
+            target = eqx.tree_at(lambda model: model.EncoderCell.B.weight, target, replace=B_weight)
+        elif self.rnntype == 'GRU':
+            weight_ih = base.EncoderCell.cell.weight_ih * tau + target.EncoderCell.cell.weight_ih * (1 - tau)
+            weight_hh = base.EncoderCell.cell.weight_hh * tau + target.EncoderCell.cell.weight_hh * (1 - tau)
+            target = eqx.tree_at(lambda model: model.EncoderCell.cell.weight_ih, target, replace=weight_ih)
+            target = eqx.tree_at(lambda model: model.EncoderCell.cell.weight_hh, target, replace=weight_hh)
         
         self.VF_target.model = target
     

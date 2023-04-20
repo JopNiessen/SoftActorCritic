@@ -18,7 +18,7 @@ class RQFunction:
     """
     Q-function (critic) of the Soft Actor-Critic (SAC) algorithm
     """
-    def __init__(self, obs_size, control_size, learning_rate, key, **kwargs):
+    def __init__(self, in_size, in2_size, learning_rate, key, **kwargs):
         """
         Initialize the Q-function
         :param in_size: input size [int]
@@ -30,8 +30,7 @@ class RQFunction:
         """
         width = kwargs.get('width', 64)
         depth = kwargs.get('depth', 1)
-        hidden_size = kwargs.get('hidden_size', 32)
-        self.model = RQNetwork(obs_size, control_size, width, depth, key, hidden_size=hidden_size)
+        self.model = RQNetwork(in_size, in2_size, width, depth, key, **kwargs)
         self.optimizer = optax.adam(learning_rate)
         self.opt_state = self.optimizer.init(self.model)
     
@@ -55,7 +54,6 @@ class RQFunction:
         :return: loss [jnp.ndarray]
         """
         pred = jax.vmap(model)(state_seq, control_seq, control)
-        #pred = jnp.reshape(pred, target.shape) #TODO:may be redundant > check
         return jnp.mean((pred - target)**2)
     
     #@eqx.filter_jit

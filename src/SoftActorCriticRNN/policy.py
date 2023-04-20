@@ -17,7 +17,7 @@ class PolicyFunctionRNN:
     """
     Gaussian policy (actor) of the Soft Actor-Critic (SAC) algorithm
     """
-    def __init__(self, in_size: int, out_size: int, learning_rate: float, key: jrandom.PRNGKey, control_limit: int = 1, hidden_size: int = 8):
+    def __init__(self, in_size: int, out_size: int, learning_rate: float, key: jrandom.PRNGKey, **kwargs):
         """
         Initialize the policy function
         :param in_size: input size [int]
@@ -26,7 +26,7 @@ class PolicyFunctionRNN:
         :param key: key [jrandom.PRNGKey]
         :param control_limit: maximal control magnitude [int]
         """
-        self.model = PolicyRNN(in_size, out_size, key, control_limit=control_limit, hidden_size=hidden_size)
+        self.model = PolicyRNN(in_size, out_size, key, **kwargs)
         self.optimizer = optax.adam(learning_rate)
         self.opt_state = self.optimizer.init(self.model)
     
@@ -40,7 +40,7 @@ class PolicyFunctionRNN:
         return self.model(state_traj, control_traj, key)
     
     #@eqx.filter_jit
-    def loss(self, model, state_seq, control_seq, state, alpha, v_pred, q_min, keys) -> jnp.ndarray:
+    def loss(self, model, state_seq, control_seq, state, alpha, v_pred, qf1, qf2, keys) -> jnp.ndarray:
         """
         Compute loss of the value-network
         :param model: equinox network
@@ -49,13 +49,14 @@ class PolicyFunctionRNN:
         :return: loss [jnp.ndarray]
         """
         new_control, log_prob = jax.vmap(model)(state_seq, control_seq, keys)
-        q_pred = jax.vmap(q_min)(state_seq, control_seq, new_control)
-        q_pred = jnp.reshape(q_pred, v_pred.shape)
+        q1 = jax.vmap(qf1)(state_seq, control_seq, new_control)
+        q2 = jax.vmap(qf2)(state_seq, control_seq, new_control)
+        q_pred = jax.vmap(jax.lax.min)(q1, q2)
         advantage = q_pred - v_pred
-        advantage = jnp.reshape(advantage, log_prob.shape)
         return jnp.mean(alpha * log_prob - advantage)
     
-    def value_and_grad(self, state_traj, control_traj, state, alpha, v_pred, q_min, keys) -> Tuple:
+    #@eqx.filter_jit
+    def value_and_grad(self, state_traj, control_traj, state, alpha, v_pred, qf1, qf2, keys) -> Tuple:
         """
         Compute loss and gradient of the policy-network
         :param state: state [jnp.ndarray]
@@ -66,7 +67,7 @@ class PolicyFunctionRNN:
         :return: loss [jnp.ndarray]
         :return: gradients
         """
-        return eqx.filter_value_and_grad(self.loss)(self.model, state_traj, control_traj, state, alpha, v_pred, q_min, keys)
+        return eqx.filter_value_and_grad(self.loss)(self.model, state_traj, control_traj, state, alpha, v_pred, qf1, qf2, keys)
     
     def update(self, grads):
         """
