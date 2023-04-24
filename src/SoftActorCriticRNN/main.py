@@ -216,7 +216,7 @@ class SACAgent:
         else:
             pi_loss = 0
         
-        print(f'iteration={self.step_count}')
+        #print(f'iteration={self.step_count}')
 
         """update q-functions"""
         self.q1_model = params_q1
