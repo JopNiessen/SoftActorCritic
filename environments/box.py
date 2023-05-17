@@ -18,7 +18,7 @@ class Box_SDI:
         This class describes a 2 dimensional linear dynamical system with gaussian noise
 
         :param b: bias term [float]
-        :param k: friction [float]
+        :param k: friction constant [float]
         :param dt: time step size [float]
         :param end_time: end-time of a trial [int]
         """
