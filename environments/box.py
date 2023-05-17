@@ -29,6 +29,8 @@ class Box_SDI:
         self.t = 0
         self.dt = dt
         self.end_time = end_time
+
+        self.random_bias = kwargs.get('random_bias', False)
         
         self.dim = 2
         self.min = kwargs.get('min', jnp.array([-5, -jnp.inf]))
@@ -129,6 +131,9 @@ class Box_SDI:
         else:
             self.state = x0
         
+        if self.random_bias:
+            self.B = self.B * np.random.choice([-1, 1])
+
         if T != None:
             self.end_time = T
         
