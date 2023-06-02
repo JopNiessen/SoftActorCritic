@@ -105,7 +105,7 @@ class Orbital_SDI:
         x = state
         return x.T @ self.F @ x
 
-    def reset(self, x0=None, T=None, key=jrandom.PRNGKey(randint(0, high=1000))):
+    def reset(self, x0=None, T=None, key=None):
         """
         Reset state
         :param x0: initial state
