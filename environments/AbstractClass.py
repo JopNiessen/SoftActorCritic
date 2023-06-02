@@ -1,54 +1,63 @@
 """
-2-Dimensional Linear Quadratic (LQ) system with gaussian noise
+Abstract class
 
 by J. Niessen
-created on: 2022.10.24
+created on: 2023.05.02
 """
 
+
 import numpy as np
+import jax
 import jax.numpy as jnp
 import jax.random as jrandom
-
+import gym
 from numpy.random import randint
 
+import environments.numerical_method as nm
 
-class Box_SDI:
-    def __init__(self, b=1, k=.2, dt=.1, end_time=20, **kwargs):
+
+class AbstractEnv(gym.Env):
+    def __init__(self, dt=0.1, end_time=20, **kwargs):
         """
-        This class describes a 2 dimensional linear dynamical system with gaussian noise
-
-        :param b: bias term [float]
-        :param k: friction constant [float]
+        Abstract class for dynamical systems
         :param dt: time step size [float]
         :param end_time: end-time of a trial [int]
         """
         self.state = None
         self.done = False
-        self.edge = False
 
         self.t = 0
         self.dt = dt
         self.end_time = end_time
 
-        self.random_bias = kwargs.get('random_bias', False)
+        self.num_method = kwargs.get('num_method', nm.euler)
         
-        self.dim = 2
-        self.min = kwargs.get('min', jnp.array([-5, -jnp.inf]))
-        self.max = kwargs.get('max', jnp.array([5, jnp.inf]))
+        self.dim = kwargs.get('dim', 2)
+        self.control_dim = kwargs.get('control_dim', 1)
+
+        self.boundary = kwargs.get('boundary', False)
+        self.min = kwargs.get('min', -jnp.ones(self.dim) * jnp.inf)
+        self.max = kwargs.get('max', jnp.ones(self.dim) * jnp.inf)
 
         """System parameters"""
-        self.A = jnp.array([[0, 1], [0, -k]])
-        self.B = jnp.array([0, b])
-        self.C = jnp.identity(self.dim)
-        self.v = jnp.array([[.5, 0], [0, .5]])      # observation noise
-        self.w = jnp.array([[0, 0], [0, .2]])       # system noise
+        self.A = kwargs.get('A', jnp.zeros((self.dim, self.dim)))
+        self.B = kwargs.get('B', jnp.zeros(self.dim))
+        self.C = kwargs.get('C', jnp.identity(self.dim))
+        
+        noise_v = kwargs.get('noise_v', .1)
+        noise_w = kwargs.get('noise_w', .1)
+        self.v = kwargs.get('v', jnp.identity(self.dim) * noise_v)        # observation noise
+        self.w = kwargs.get('w', jnp.identity(self.dim) * noise_w)        # system noise
 
         """Cost parameters"""
-        self.F = jnp.array([[1, 0], [0, 0]])
-        self.G = jnp.array([[1, 0], [0, 0]])
-        self.R = 1
+        self.target = kwargs.get('target', jnp.zeros(self.dim))
+        self.F = kwargs.get('F', jnp.identity(self.dim))
+        self.G = kwargs.get('G', jnp.identity(self.dim))
+        self.R = kwargs.get('R', jnp.identity(self.control_dim))
 
-        self.reset()
+        """Gym parameters"""
+        self.action_space = gym.spaces.Box(low=-4, high=4, shape=(self.control_dim,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.dim,), dtype=np.float32)
     
     def predict_deriv(self, state, control):
         """
@@ -56,32 +65,31 @@ class Box_SDI:
         :param state: state [jnp.array]
         :param control: control [float]
         """
-        return jnp.dot(self.A, state) + self.B * control
+        return jnp.dot(self.A, state) + self.B @ control
     
-    def step(self, control, key=None):
+    def _step(self, control, key=None):
         key, subkey = jrandom.split(random_key(key))
         xi = jrandom.normal(key, (self.dim, ))
-        self.state = self.state + self.dt * (jnp.dot(self.A, self.state) + self.B * control) + np.sqrt(self.dt) * np.dot(self.w, xi)
+        
+        self.state = self.num_method(self.predict_deriv, self.state, control, self.dt) + np.sqrt(self.dt) * np.dot(self.w, xi)
+        #self.state += self.dt * self.predict_deriv(self.state, control) + np.sqrt(self.dt) * np.dot(self.w, xi)
         self.t += self.dt
         
         observation = self._get_obs(subkey)
         reward = -self.cost(self.state, control)
 
-        self._clip_state()
-        self._check_time()
-
-        return observation, reward, self.done, self.edge
+        return observation, reward, self.done, {}
 
     def _clip_state(self):
         """
         Clip system state > prevent state from exiting the given bounds (self.min, self.max)
         """
+        if self.boundary:
+            self.state = jnp.clip(self.state, a_min=self.min, a_max=self.max)
+    
+    def _check_state(self):
         if any(self.state < self.min) or any(self.state > self.max):
-            self.state = jnp.array([1, -1]) * self.state
-            self.edge = True
-        else:
-            self.edge = False
-        self.state = jnp.clip(self.state, a_min=self.min, a_max=self.max)
+            self.done = True
     
     def _check_time(self):
         """
@@ -89,7 +97,7 @@ class Box_SDI:
         """
         if self.t >= self.end_time:
             self.done = True
-
+    
     def _get_obs(self, key):
         """
         Observe the state (x) according to: y(n) = Cx(n) + Vxi
@@ -106,7 +114,7 @@ class Box_SDI:
         :return: marginal cost
         """
         x, u = state, control
-        return (x.T @ self.G @ x + self.R * u**2)*self.dt
+        return ((x - self.target).T @ self.G @ (x - self.target) + u.T @ self.R @ u) * self.dt
 
     def terminal_cost(self, state):
         """
@@ -131,9 +139,6 @@ class Box_SDI:
         else:
             self.state = x0
         
-        if self.random_bias:
-            self.B = self.B * np.random.choice([-1, 1])
-
         if T != None:
             self.end_time = T
         
@@ -157,10 +162,9 @@ class Box_SDI:
     
     def close(self):
         pass
-    
+   
 
-
-def random_key(key, high=10000):
+def random_key(key, high=1000):
     if key == None:
         return jrandom.PRNGKey(randint(0, high=high))
     else:
