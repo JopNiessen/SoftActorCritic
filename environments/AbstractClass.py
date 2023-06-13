@@ -70,9 +70,7 @@ class AbstractEnv(gym.Env):
     def _step(self, control, key=None):
         key, subkey = jrandom.split(random_key(key))
         xi = jrandom.normal(key, (self.dim, ))
-        
-        #self.state = self.num_method(self.predict_deriv, self.state, control, self.dt) + np.sqrt(self.dt) * np.dot(self.w, xi)
-        self.state += self.dt * self.predict_deriv(self.state, control) + np.sqrt(self.dt) * np.dot(self.w, xi)
+        self.state = self.state + self.dt * self.predict_deriv(self.state, control) + np.sqrt(self.dt) * np.dot(self.w, xi)
         self.t += self.dt
         
         observation = self._get_obs(subkey)
