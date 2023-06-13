@@ -13,7 +13,7 @@ import jax.random as jrandom
 import gym
 from numpy.random import randint
 
-import environments.numerical_method as nm
+#import environments.numerical_method as nm
 
 
 class AbstractEnv(gym.Env):
@@ -30,7 +30,7 @@ class AbstractEnv(gym.Env):
         self.dt = dt
         self.end_time = end_time
 
-        self.num_method = kwargs.get('num_method', nm.euler)
+        #self.num_method = kwargs.get('num_method', nm.euler)
         
         self.dim = kwargs.get('dim', 2)
         self.control_dim = kwargs.get('control_dim', 1)
@@ -65,14 +65,14 @@ class AbstractEnv(gym.Env):
         :param state: state [jnp.array]
         :param control: control [float]
         """
-        return jnp.dot(self.A, state) + self.B @ control
+        return jnp.dot(self.A, state) + self.B * control
     
     def _step(self, control, key=None):
         key, subkey = jrandom.split(random_key(key))
         xi = jrandom.normal(key, (self.dim, ))
         
-        self.state = self.num_method(self.predict_deriv, self.state, control, self.dt) + np.sqrt(self.dt) * np.dot(self.w, xi)
-        #self.state += self.dt * self.predict_deriv(self.state, control) + np.sqrt(self.dt) * np.dot(self.w, xi)
+        #self.state = self.num_method(self.predict_deriv, self.state, control, self.dt) + np.sqrt(self.dt) * np.dot(self.w, xi)
+        self.state += self.dt * self.predict_deriv(self.state, control) + np.sqrt(self.dt) * np.dot(self.w, xi)
         self.t += self.dt
         
         observation = self._get_obs(subkey)
@@ -114,7 +114,7 @@ class AbstractEnv(gym.Env):
         :return: marginal cost
         """
         x, u = state, control
-        return ((x - self.target).T @ self.G @ (x - self.target) + u.T @ self.R @ u) * self.dt
+        return ((x - self.target).T @ self.G @ (x - self.target) + self.R * u**2) * self.dt
 
     def terminal_cost(self, state):
         """
