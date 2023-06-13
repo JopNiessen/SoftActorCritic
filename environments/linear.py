@@ -30,7 +30,7 @@ class Linear_SDI(AbstractEnv):
         self.w = jnp.array([[0, 0], [0, .2]])
 
         """Cost parameters"""
-        self.F = 1 #jnp.array([[1, 0], [0, 0]])
+        self.R = 1 #jnp.array([[1, 0], [0, 0]])
         self.G = jnp.array([[1, 0], [0, 0]])
         
         self.reset()
