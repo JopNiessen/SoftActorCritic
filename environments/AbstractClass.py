@@ -53,7 +53,7 @@ class AbstractEnv(gym.Env):
         self.target = kwargs.get('target', jnp.zeros(self.dim))
         self.F = kwargs.get('F', jnp.identity(self.dim))
         self.G = kwargs.get('G', jnp.identity(self.dim))
-        self.R = kwargs.get('R', jnp.identity(self.control_dim))
+        self.R = kwargs.get('R', 1)
 
         """Gym parameters"""
         self.action_space = gym.spaces.Box(low=-4, high=4, shape=(self.control_dim,), dtype=np.float32)
