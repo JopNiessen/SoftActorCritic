@@ -96,7 +96,8 @@ class SACAgent:
         self.alpha_opt_state = self.alpha_optimizer.init(self.log_alpha)
 
         # actor
-        self.actor = PolicyFunction(self.obs_size, self.ctrl_size, lr_pi, keys[0], control_limit=self.control_limit)
+        linear_policy = kwargs.get('linear_policy', True)
+        self.actor = PolicyFunction(self.obs_size, self.ctrl_size, lr_pi, keys[0], control_limit=self.control_limit, linear=linear_policy)
         
         # v function
         self.VF = ValueFunction(self.obs_size, lr_v, keys[1])
@@ -164,17 +165,21 @@ class SACAgent:
         v_target = jax.vmap(self.VF_target)(next_state)
         q_target = reward + self.gamma * v_target * mask
         q1_loss, q1_grads = self.QF1.value_and_grad(state, control, q_target)
+        q1_grads = clip_grads(q1_grads)
         q2_loss, q2_grads = self.QF2.value_and_grad(state, control, q_target)
+        q2_grads = clip_grads(q2_grads)
         
         # value function gradients
         v_pred = jax.vmap(self.VF)(state)
         q_pred = jax.vmap(self.q_min)(state, new_control)
         v_target = q_pred - alpha * log_prob
         v_loss, v_grads = self.VF.value_and_grad(state, v_target)
+        v_grads = clip_grads(v_grads)
         
         if self.step_count % self.policy_update_freq == 0:
             # update actor
             pi_loss, pi_grads = self.actor.value_and_grad(state, alpha, v_pred, self.q_min, keys)
+            pi_grads = clip_grads(pi_grads)
             self.actor.update(pi_grads)
         
             # update value target
@@ -270,3 +275,6 @@ class SACAgent:
         for loc, title, values in subplot_params:
             subplot(loc, title, values)
         plt.show()
+
+def clip_grads(grads, clip_value=1):
+    return jax.tree_map(lambda x: jnp.clip(x, -clip_value, clip_value), grads)

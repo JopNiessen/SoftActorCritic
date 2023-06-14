@@ -19,7 +19,7 @@ class PolicyFunction:
     """
     Gaussian policy (actor) of the Soft Actor-Critic (SAC) algorithm
     """
-    def __init__(self, in_size: int, out_size: int, learning_rate: float, key: jrandom.PRNGKey, control_limit: int = 1):
+    def __init__(self, in_size: int, out_size: int, learning_rate: float, key: jrandom.PRNGKey, control_limit: int = 1, linear=True):
         """
         Initialize the policy function
         :param in_size: input size [int]
@@ -28,8 +28,10 @@ class PolicyFunction:
         :param key: key [jrandom.PRNGKey]
         :param control_limit: maximal control magnitude [int]
         """
-        #self.model = PolicyNetwork(in_size, out_size, key, control_limit=control_limit)
-        self.model = LinearPolicyNetwork(in_size, out_size, key, control_limit=control_limit)
+        if linear:
+            self.model = LinearPolicyNetwork(in_size, out_size, key, control_limit=control_limit)
+        else:
+            self.model = PolicyNetwork(in_size, out_size, key, control_limit=control_limit)
         self.optimizer = optax.adam(learning_rate)
         self.opt_state = self.optimizer.init(self.model)
     

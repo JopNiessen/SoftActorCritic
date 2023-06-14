@@ -119,7 +119,7 @@ class ValueNetwork(eqx.Module):
 class PolicyNetwork(eqx.Module):
     general_layers: list
     mu_layer: eqx.nn.Linear
-    log_std_layer: eqx.nn.Linear
+    log_std_layer: list
 
     log_std_min: jnp.float32
     log_std_max: jnp.float32
@@ -132,28 +132,30 @@ class PolicyNetwork(eqx.Module):
         key,
         control_limit: float = 1,
         log_std_min: float = -20,
-        log_std_max: float = 2
+        log_std_max: float = 2,
+        hidden_size: int = 32
     ):
-        keys = jrandom.split(key, 4)
+        keys = jrandom.split(key, 5)
         self.control_lim = control_limit
 
         # set log-std
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
 
-        # set general layers
-        self.general_layers = [eqx.nn.Linear(in_size, 128, key=keys[0]),
-                                eqx.nn.Linear(128, 128, key=keys[1])]
+        # general layer
+        self.general_layers = [eqx.nn.Linear(in_size, hidden_size, key=keys[3]),
+                                eqx.nn.Linear(hidden_size, hidden_size, key=keys[4])]
+        # set mu layer
+        self.mu_layer = eqx.nn.Linear(hidden_size, out_size, use_bias=False, key=keys[0])
 
         # set log_std layer
-        self.log_std_layer = eqx.nn.Linear(128, out_size, key=keys[2])
-
-        # set mu layer
-        self.mu_layer = eqx.nn.Linear(128, out_size, key=keys[3])
+        self.log_std_layer = [eqx.nn.Linear(hidden_size, 32, key=keys[1]),
+                                eqx.nn.Linear(32, out_size, key=keys[2])]
     
     @jax.jit
     def __call__(self, state, key):
         x = state
+        
         for layer in self.general_layers:
             x = jax.nn.relu(layer(x))
         
@@ -161,7 +163,9 @@ class PolicyNetwork(eqx.Module):
         mu = jax.nn.tanh(self.mu_layer(x))
 
         # apply log-std layer
-        log_std = jnp.tanh(self.log_std_layer(x))
+        for layer in self.log_std_layer[:-1]:
+            x = jax.nn.relu(layer(x))
+        log_std = jnp.tanh(self.log_std_layer[-1](x))
         log_std = self.log_std_min + 0.5 * (self.log_std_max - self.log_std_min) * (log_std + 1)
         std = jnp.exp(log_std)
         
@@ -169,7 +173,7 @@ class PolicyNetwork(eqx.Module):
         z = mu + std * jrandom.normal(key, (1,))
         
         # squeez and normalize
-        control = jnp.tanh(z)                       # Note: jnp.tanh appearantly can yield a value slightly higher than 1.
+        control = jnp.tanh(z)                       # TODO: jnp.tanh appearantly can yield a value slightly higher than 1.
         log_prob = logpdf(z, loc=mu, scale=std) - jnp.log(1 - control**2 + 1e-5)
         
         return control * self.control_lim, log_prob
@@ -178,7 +182,6 @@ class PolicyNetwork(eqx.Module):
         x = state
         for layer in self.general_layers:
             x = jax.nn.relu(layer(x))
-        
-        # apply mu layer
-        mu = jax.nn.tanh(self.mu_layer(x))
+        mu = jax.nn.tanh(self.mu_layer(x)) * self.control_lim
         return mu
+
