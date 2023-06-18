@@ -126,7 +126,8 @@ class SACAgent:
         self.step_count = 0
 
         """Actor model"""
-        self.actor_model = pi.generate_instance(self.obs_size+self.ctrl_size, self.ctrl_size, lr_pi, keys[0], **kwargs)
+        linear_policy = kwargs.get('linear_policy', True)
+        self.actor_model = pi.generate_instance(self.obs_size+self.ctrl_size, self.ctrl_size, lr_pi, keys[0], linear=linear_policy, **kwargs)
 
         """Critic models"""
         self.value_model = vf.generate_instance(self.obs_size + self.ctrl_size, lr_v, keys[1], **kwargs)
@@ -331,3 +332,4 @@ class SACAgent:
         for loc, title, values in subplot_params:
             subplot(loc, title, values)
         plt.show()
+

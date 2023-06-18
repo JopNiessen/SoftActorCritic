@@ -12,6 +12,7 @@ from typing import Callable, Tuple
 
 # import local libraries
 from src.SoftActorCriticRNN.recurrent_network import PolicyRNN
+from src.SoftActorCriticRNN.utilities.functional import clip_grads
 
 class PolicyFunctionRNN:
     """
@@ -79,7 +80,7 @@ class PolicyFunctionRNN:
 
 
 """Function based approach"""
-def generate_instance(in_size, out_size, learning_rate, key, **kwargs):
+def generate_instance(in_size, out_size, learning_rate, key, linear=True, **kwargs):
     """
     Initialize the policy function
     :param in_size: input size [int]
@@ -88,7 +89,7 @@ def generate_instance(in_size, out_size, learning_rate, key, **kwargs):
     :param key: key [jrandom.PRNGKey]
     :param control_limit: maximal control magnitude [int]
     """
-    model = PolicyRNN(in_size, out_size, key, **kwargs)
+    model = PolicyRNN(in_size, out_size, key, linear=linear, **kwargs)
     optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(model)
     return model, optimizer, opt_state
@@ -111,6 +112,7 @@ def loss_fn(model, state_seq, control_seq, alpha, v_pred, qf1, qf2, keys):
 def make_step(params, state_traj, control_traj, alpha, v_pred, qf1, qf2, keys):
     (model, optim, opt_state) = params
     loss, grads = loss_fn(model, state_traj, control_traj, alpha, v_pred, qf1, qf2, keys)
+    grads = clip_grads(grads)
     updates, opt_state = optim.update(grads, opt_state)
     model = eqx.apply_updates(model, updates)
     return loss, (model, optim, opt_state)

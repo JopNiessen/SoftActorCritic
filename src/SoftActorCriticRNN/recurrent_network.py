@@ -16,12 +16,14 @@ from src.SoftActorCriticRNN.networks.WilsonCowan import WilsonCowanCell
 class PolicyRNN(eqx.Module):
     EncoderCell: eqx.Module
     C: eqx.Module
+    mu_mlp: list
     log_std_layer: list
 
     log_std_min: jnp.float32
     log_std_max: jnp.float32
     hidden_size: int
     control_limit: jnp.float32
+    linear: bool
 
     def __init__(
         self,
@@ -32,7 +34,13 @@ class PolicyRNN(eqx.Module):
     ):
         keys = jrandom.split(key, 3)
         RNN_type = kwargs.get('RNN_type', 'WilsonCowan')
+        
         self.hidden_size = kwargs.get('hidden_size', 8)
+        mu_hidden_size = kwargs.get('mu_hidden_size', 32)
+        std_hidden_size = kwargs.get('std_hidden_size', 32)
+
+        self.linear = kwargs.get('linear', True)
+
         self.control_limit = kwargs.get('control_limit', 1)
 
         # set log-std
@@ -50,12 +58,20 @@ class PolicyRNN(eqx.Module):
         # set mu layer
         self.C = eqx.nn.Linear(self.hidden_size, out_size, use_bias=False, key=keys[0])
 
+        self.mu_mlp = [eqx.nn.Linear(self.hidden_size, mu_hidden_size, key=keys[1]),
+                        eqx.nn.Linear(mu_hidden_size, out_size, key=keys[2])]
+
         # set log-stdev layer
-        self.log_std_layer = [eqx.nn.Linear(self.hidden_size, 32, key=keys[2]),
-                                eqx.nn.Linear(32, out_size, key=keys[3])]
+        self.log_std_layer = [eqx.nn.Linear(self.hidden_size, std_hidden_size, key=keys[2]),
+                                eqx.nn.Linear(std_hidden_size, out_size, key=keys[3])]
     
     def decoder(self, hidden):
-        return self.C(hidden)
+        if self.linear:
+            return self.C(hidden)
+        else:
+            for layer in self.mu_mlp[:-1]:
+                hidden = jax.nn.relu(layer(hidden))
+            return self.mu_mlp[-1](hidden)
 
     @eqx.filter_jit
     def __call__(self, obs, control, key):

@@ -12,6 +12,7 @@ from typing import Tuple
 
 # import local libraries
 from src.SoftActorCriticRNN.recurrent_network import RQNetwork
+from src.SoftActorCriticRNN.utilities.functional import clip_grads
 
 
 class RQFunction:
@@ -114,6 +115,7 @@ def loss_fn(model, state_seq, control_seq, control, target):
 def make_step(params, state_seq, control_seq, control, target):
     (model, optim, opt_state) = params
     loss, grads = loss_fn(model, state_seq, control_seq, control, target)
+    grads = clip_grads(grads)
     updates, opt_state = optim.update(grads, opt_state)
     model = eqx.apply_updates(model, updates)
     return loss, (model, optim, opt_state)

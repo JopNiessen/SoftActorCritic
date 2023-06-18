@@ -11,6 +11,7 @@ import optax
 
 # import local libraries
 from src.SoftActorCriticRNN.recurrent_network import RValueNetwork
+from src.SoftActorCriticRNN.utilities.functional import clip_grads
 
 
 class RValueFunction:
@@ -110,6 +111,7 @@ def loss_fn(model, state_seq, control_seq, target):
 def make_step(params, state_seq, control_seq, target):
     (model, optim, opt_state) = params
     loss, grads = loss_fn(model, state_seq, control_seq, target)
+    grads = clip_grads(grads)
     updates, opt_state = optim.update(grads, opt_state)
     model = eqx.apply_updates(model, updates)
     return loss, (model, optim, opt_state)
