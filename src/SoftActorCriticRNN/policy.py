@@ -75,6 +75,7 @@ class PolicyFunctionRNN:
         Update network weights
         :param grads: gradients
         """
+        grads = clip_grads(grads)
         updates, self.opt_state = self.optimizer.update(grads, self.opt_state)
         self.model = eqx.apply_updates(self.model, updates)
 
