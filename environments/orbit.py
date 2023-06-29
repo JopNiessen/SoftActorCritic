@@ -51,7 +51,8 @@ class Orbital_SDI:
     
     def state_update(self, control, key):
         xi = jrandom.normal(key, (self.dim, ))
-        theta, w = self.state + self.dt * (jnp.dot(self.A, self.state) + self.B * control) + self.dt * np.dot(self.w, xi)
+        #theta, w = self.state + self.dt * (jnp.dot(self.A, self.state) + self.B * control) + self.dt * np.dot(self.w, xi)
+        theta, w = self.state + self.dt * (jnp.dot(self.A, self.state) + self.B * control) + np.sqrt(self.dt) * np.dot(self.w, xi)
         theta = (theta + jnp.pi) % (2 * jnp.pi) - jnp.pi
         return jnp.array([theta, w])
 
